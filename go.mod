@@ -20,4 +20,5 @@ require (
 	github.com/multiformats/go-multihash v0.0.15
 	github.com/rivo/tview v0.0.0-20210608105643-d4fb0348227b
 	github.com/sirupsen/logrus v1.2.0
+	golang.org/x/net v0.33.0 // indirect
 )
