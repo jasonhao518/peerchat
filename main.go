@@ -101,21 +101,31 @@ func main() {
 
 	// Define a handler function
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
-			return
-		}
-		defer r.Body.Close() // Ensure the body is closed
-		bodyStr := string(body)
+		if r.Method == "GET" {
+			fmt.Fprintln(w, chatapp.PeerList())
+		} else {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+				return
+			}
+			defer r.Body.Close() // Ensure the body is closed
+			bodyStr := string(body)
+			if bodyStr == "" {
+				// switch to self when it's empty
+				p2phost.Proxy.SetRemotePeer(p2phost.Host.ID())
+				fmt.Fprintln(w, "reset remote peer to self", p2phost.Host.ID())
+			} else {
+				peerID, err := peer.Decode(bodyStr)
+				if err != nil {
+					http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+					return
+				}
+				p2phost.Proxy.SetRemotePeer(peerID)
+				fmt.Fprintln(w, "successfully set remote peer to", bodyStr)
+			}
 
-		peerID, err := peer.Decode(bodyStr)
-		if err != nil {
-			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
-			return
 		}
-		p2phost.Proxy.SetRemotePeer(peerID)
-		fmt.Fprintln(w, "Hello, World!", bodyStr, chatapp.PeerList())
 
 	})
 
