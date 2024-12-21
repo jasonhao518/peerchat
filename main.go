@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -37,6 +39,7 @@ func init() {
 
 func main() {
 	// Define input flags
+	port := flag.String("port", "8080", "http port.")
 	username := flag.String("user", "", "username to use in the chatroom.")
 	chatroom := flag.String("room", "", "chatroom to join.")
 	loglevel := flag.String("log", "", "level of logs to print.")
@@ -91,6 +94,29 @@ func main() {
 
 	// Wait for network setup to complete
 	time.Sleep(time.Second * 5)
+
+	// Define a handler function
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+			return
+		}
+		defer r.Body.Close() // Ensure the body is closed
+		bodyStr := string(body)
+
+		fmt.Fprintln(w, "Hello, World!", bodyStr, chatapp.PeerList())
+
+	})
+
+	go func() {
+		// Start the HTTP server
+		fmt.Println("Starting server on :8080...")
+		err := http.ListenAndServe("127.0.0.1:"+*port, nil)
+		if err != nil {
+			fmt.Println("Error starting server:", err)
+		}
+	}()
 
 	// Create the Chat UI
 	ui := src.NewUI(chatapp)
