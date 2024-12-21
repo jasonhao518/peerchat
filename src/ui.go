@@ -237,6 +237,11 @@ func (ui *UI) handlecommand(cmd uicommand) {
 		// Clear the UI message box
 		ui.messageBox.Clear()
 
+	// Check for the clear command
+	case "/ping":
+		// Clear the UI message box
+		ui.ChatRoom.Ping(cmd.cmdarg)
+
 	// Check for the room change command
 	case "/room":
 		if cmd.cmdarg == "" {

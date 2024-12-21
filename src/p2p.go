@@ -17,6 +17,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/routing"
 	discovery "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	yamux "github.com/libp2p/go-libp2p/p2p/muxer/yamux"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/mr-tron/base58/base58"
 	"github.com/multiformats/go-multiaddr"
@@ -77,6 +78,8 @@ func NewP2P() *P2P {
 	pubsubhandler := setupPubSub(ctx, nodehost, routingdiscovery)
 	// Debug log
 	logrus.Debugln("Created the PubSub Handler.")
+
+	ping.NewPingService(nodehost)
 
 	// Return the P2P object
 	return &P2P{

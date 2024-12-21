@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"time"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 )
 
 // Represents the default fallback room and user names
@@ -211,4 +214,22 @@ func (cr *ChatRoom) Exit() {
 // A method of ChatRoom that updates the chat user name
 func (cr *ChatRoom) UpdateUser(username string) {
 	cr.UserName = username
+}
+
+// A method of ChatRoom that updates the chat user name
+func (cr *ChatRoom) Ping(peerIdStr string) {
+	ctx := context.Background()
+	ctxt, cancel := context.WithTimeout(ctx, time.Second*5)
+	peerID, err := peer.Decode(peerIdStr)
+	if err != nil {
+		return
+	}
+	res := <-ping.Ping(ctxt, cr.Host.Host, peerID)
+	if res.Error != nil {
+
+		log.Printf("ping error: %v", res.Error)
+	} else {
+		log.Printf("ping RTT: %s", res.RTT)
+	}
+	cancel()
 }
