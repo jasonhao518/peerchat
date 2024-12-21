@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/manishmeganathan/peerchat/protocol"
 	"github.com/manishmeganathan/peerchat/src"
 	"github.com/sirupsen/logrus"
 )
@@ -39,7 +41,9 @@ func init() {
 
 func main() {
 	// Define input flags
-	port := flag.String("port", "8080", "http port.")
+	port := flag.String("port", "3030", "http port.")
+	ssh := flag.String("ssh", "2222", "http port.")
+	socks5 := flag.String("socks5", "1082", "http port.")
 	username := flag.String("user", "", "username to use in the chatroom.")
 	chatroom := flag.String("room", "", "chatroom to join.")
 	loglevel := flag.String("log", "", "level of logs to print.")
@@ -105,21 +109,38 @@ func main() {
 		defer r.Body.Close() // Ensure the body is closed
 		bodyStr := string(body)
 
+		peerID, err := peer.Decode(bodyStr)
+		if err != nil {
+			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+			return
+		}
+		p2phost.Proxy.SetRemotePeer(peerID)
 		fmt.Fprintln(w, "Hello, World!", bodyStr, chatapp.PeerList())
 
 	})
 
 	go func() {
 		// Start the HTTP server
-		fmt.Println("Starting server on :8080...")
+		fmt.Println("Starting server on :", *port)
 		err := http.ListenAndServe("127.0.0.1:"+*port, nil)
 		if err != nil {
 			fmt.Println("Error starting server:", err)
 		}
 	}()
 
+	go func() {
+		if err := p2phost.Proxy.Serve("0.0.0.0:" + *socks5); err != nil {
+			protocol.Log.Fatal(err)
+		}
+	}()
+	//go func() {
+	if err := p2phost.Proxy.ServeSsh("0.0.0.0:" + *ssh); err != nil {
+		protocol.Log.Fatal(err)
+	}
+	//}()
+
 	// Create the Chat UI
-	ui := src.NewUI(chatapp)
+	//ui := src.NewUI(chatapp)
 	// Start the UI system
-	ui.Run()
+	//ui.Run()
 }

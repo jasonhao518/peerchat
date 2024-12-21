@@ -19,6 +19,7 @@ import (
 	yamux "github.com/libp2p/go-libp2p/p2p/muxer/yamux"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
+	"github.com/manishmeganathan/peerchat/protocol"
 	"github.com/mr-tron/base58/base58"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -37,6 +38,8 @@ type P2P struct {
 
 	// Represents the DHT routing table
 	KadDHT *dht.IpfsDHT
+
+	Proxy *protocol.ProxyService
 
 	// Represents the peer discovery service
 	Discovery *discovery.RoutingDiscovery
@@ -80,11 +83,13 @@ func NewP2P() *P2P {
 	logrus.Debugln("Created the PubSub Handler.")
 
 	ping.NewPingService(nodehost)
+	proxy := protocol.NewProxyService(ctx, nodehost, "p2p.to", nodehost.ID())
 
 	// Return the P2P object
 	return &P2P{
 		Ctx:       ctx,
 		Host:      nodehost,
+		Proxy:     proxy,
 		KadDHT:    kaddht,
 		Discovery: routingdiscovery,
 		PubSub:    pubsubhandler,
