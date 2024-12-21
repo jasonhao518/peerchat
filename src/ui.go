@@ -319,7 +319,7 @@ func (ui *UI) syncpeerbox() {
 	// Iterate over the list of peers
 	for _, p := range peers {
 		// Generate the pretty version of the peer ID
-		peerid := p.Pretty()
+		peerid := p.String()
 		// Shorten the peer ID
 		peerid = peerid[len(peerid)-8:]
 		// Add the peer ID to the peer box

@@ -9,17 +9,15 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p"
-	connmgr "github.com/libp2p/go-libp2p-connmgr"
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/routing"
-	discovery "github.com/libp2p/go-libp2p-discovery"
-	host "github.com/libp2p/go-libp2p-host"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	tls "github.com/libp2p/go-libp2p-tls"
-	yamux "github.com/libp2p/go-libp2p-yamux"
-	"github.com/libp2p/go-tcp-transport"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	host "github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/routing"
+	discovery "github.com/libp2p/go-libp2p/p2p/discovery/routing"
+	yamux "github.com/libp2p/go-libp2p/p2p/muxer/yamux"
+	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/mr-tron/base58/base58"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -173,8 +171,8 @@ func setupHost(ctx context.Context) (host.Host, *dht.IpfsDHT) {
 	logrus.Traceln("Generated P2P Identity Configuration.")
 
 	// Set up TLS secured TCP transport and options
-	tlstransport, err := tls.New(prvkey)
-	security := libp2p.Security(tls.ID, tlstransport)
+	//tlstransport, err := tls.New(protocol2.ID("/my-custom-protocol/1.0.0"), prvkey, nil)
+	//security := libp2p.Security(tls.ID, tlstransport)
 	transport := libp2p.Transport(tcp.NewTCPTransport)
 	// Handle any potential error
 	if err != nil {
@@ -201,14 +199,14 @@ func setupHost(ctx context.Context) (host.Host, *dht.IpfsDHT) {
 
 	// Set up the stream multiplexer and connection manager options
 	muxer := libp2p.Muxer("/yamux/1.0.0", yamux.DefaultTransport)
-	conn := libp2p.ConnectionManager(connmgr.NewConnManager(100, 400, time.Minute))
+	//conn := libp2p.ConnectionManager(connmgr.NewConnManager(100, 400, time.Minute))
 
 	// Trace log
 	logrus.Traceln("Generated P2P Stream Multiplexer, Connection Manager Configurations.")
 
 	// Setup NAT traversal and relay options
 	nat := libp2p.NATPortMap()
-	relay := libp2p.EnableAutoRelay()
+	//relay := libp2p.EnableAutoRelay()
 
 	// Trace log
 	logrus.Traceln("Generated P2P NAT Traversal and Relay Configurations.")
@@ -224,10 +222,10 @@ func setupHost(ctx context.Context) (host.Host, *dht.IpfsDHT) {
 	// Trace log
 	logrus.Traceln("Generated P2P Routing Configurations.")
 
-	opts := libp2p.ChainOptions(identity, listen, security, transport, muxer, conn, nat, routing, relay)
+	opts := libp2p.ChainOptions(identity, listen, transport, muxer, nat, routing)
 
 	// Construct a new libP2P host with the created options
-	libhost, err := libp2p.New(ctx, opts)
+	libhost, err := libp2p.New(opts)
 	// Handle any potential error
 	if err != nil {
 		logrus.WithFields(logrus.Fields{

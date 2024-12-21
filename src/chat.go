@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // Represents the default fallback room and user names
@@ -128,7 +128,7 @@ func (cr *ChatRoom) PubLoop() {
 			// Create a ChatMessage
 			m := chatmessage{
 				Message:    message,
-				SenderID:   cr.selfid.Pretty(),
+				SenderID:   cr.selfid.String(),
 				SenderName: cr.UserName,
 			}
 
