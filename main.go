@@ -1,6 +1,7 @@
 package main
 
 import (
+	"C"
 	"flag"
 	"fmt"
 	"io"
@@ -40,6 +41,12 @@ func init() {
 }
 
 func main() {
+
+	RunMain(nil)
+}
+
+//export RunMain
+func RunMain(input *C.char) {
 	// Define input flags
 	port := flag.String("port", "3030", "http port.")
 	ssh := flag.String("ssh", "2222", "http port.")

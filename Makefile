@@ -9,11 +9,11 @@ help:
 	@echo "'build-all' - Builds the application for all platforms"
 
 build-x86:
-	@CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build  -ldflags="-s -w" -o ./bin/libp2p-proxy-amd64.dylib -buildmode=c-shared
+	@CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build  -ldflags="-s -w" -o ./bin/libp2p-proxy-x86_64.dylib -buildmode=c-shared
 	@CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build  -ldflags="-s -w" -o ./bin/p2p-proxy.dll -buildmode=c-shared 
 
 build-arm64:
-	@CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build  -ldflags="-s -w"  -o ./bin/libp2p-proxy-arm64.dylib -buildmode=c-shared 
+	@CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build  -ldflags="-s -w"  -o ./bin/libp2p-proxy-aarch64.dylib -buildmode=c-shared 
 
 build:
 	@echo Compiling PeerChat
