@@ -14,7 +14,9 @@ import (
 	"github.com/manishmeganathan/peerchat/src"
 	"github.com/sirupsen/logrus"
 )
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 const figlet = `
 
@@ -42,16 +44,25 @@ func init() {
 }
 
 func main() {
+	key := flag.String("key", "", "private key")
+	port := flag.String("port", "3030", "http port.")
+	ssh := flag.String("ssh", "222", "http port.")
+	socks5 := flag.String("socks5", "1082", "http port.")
+	// Parse input flags
+	flag.Parse()
 
-	RunMain(nil)
+	RunMain(C.CString(*key), C.CString(*port), C.CString(*ssh), C.CString(*socks5))
 }
 
 //export RunMain
-func RunMain(input *C.char) {
+func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char) {
+	serverStr := C.GoString(privKey)
+	portStr := C.GoString(port)
+	sshStr := C.GoString(ssh)
+	socks5Str := C.GoString(socks5)
+	fmt.Println("Received string from C:", serverStr, portStr, sshStr, socks5Str)
 	// Define input flags
-	port := flag.String("port", "3030", "http port.")
-	ssh := flag.String("ssh", "2222", "http port.")
-	socks5 := flag.String("socks5", "1082", "http port.")
+
 	username := flag.String("user", "", "username to use in the chatroom.")
 	chatroom := flag.String("room", "", "chatroom to join.")
 	loglevel := flag.String("log", "", "level of logs to print.")
@@ -80,13 +91,13 @@ func RunMain(input *C.char) {
 	}
 
 	// Display the welcome figlet
-	fmt.Println(figlet)
+	// fmt.Println(figlet)
 	fmt.Println("The PeerChat Application is starting.")
 	fmt.Println("This may take upto 30 seconds.")
 	fmt.Println()
 
 	// Create a new P2PHost
-	p2phost := src.NewP2P()
+	p2phost := src.NewP2P(serverStr)
 	logrus.Infoln("Completed P2P Setup")
 
 	// Connect to peers with the chosen discovery method
@@ -109,7 +120,16 @@ func RunMain(input *C.char) {
 
 	// Define a handler function
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
+		// Set CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", "*")                            // Allow all origins
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")          // Allowed methods
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization") // Allowed headers
+
+		// Handle preflight (OPTIONS) request
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent) // 204 No Content
+			return
+		} else if r.Method == "GET" {
 			if len(chatapp.PeerList()) > 0 {
 				jsonArray, err := json.Marshal(chatapp.PeerList())
 				if err != nil {
@@ -151,20 +171,20 @@ func RunMain(input *C.char) {
 
 	go func() {
 		// Start the HTTP server
-		fmt.Println("Starting server on :", *port)
-		err := http.ListenAndServe("127.0.0.1:"+*port, nil)
+		fmt.Println("Starting server on :", portStr)
+		err := http.ListenAndServe("127.0.0.1:"+portStr, nil)
 		if err != nil {
 			fmt.Println("Error starting server:", err)
 		}
 	}()
 
 	go func() {
-		if err := p2phost.Proxy.Serve("0.0.0.0:" + *socks5); err != nil {
+		if err := p2phost.Proxy.Serve("0.0.0.0:" + socks5Str); err != nil {
 			protocol.Log.Fatal(err)
 		}
 	}()
 	//go func() {
-	if err := p2phost.Proxy.ServeSsh("0.0.0.0:" + *ssh); err != nil {
+	if err := p2phost.Proxy.ServeSsh("0.0.0.0:" + sshStr); err != nil {
 		protocol.Log.Fatal(err)
 	}
 	//}()

@@ -2,8 +2,9 @@ package src
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
+	"fmt"
 	"sync"
 	"time"
 
@@ -58,12 +59,12 @@ A Kademlia DHT is then bootstrapped on this host using the default peers offered
 and a Peer Discovery service is created from this Kademlia DHT. The PubSub handler is then
 created on the host using the peer discovery service created prior.
 */
-func NewP2P() *P2P {
+func NewP2P(privateKey string) *P2P {
 	// Setup a background context
 	ctx := context.Background()
 
 	// Setup a P2P Host Node
-	nodehost, kaddht := setupHost(ctx)
+	nodehost, kaddht := setupHost(ctx, privateKey)
 	// Debug log
 	logrus.Debugln("Created the P2P Host and the Kademlia DHT.")
 
@@ -162,11 +163,37 @@ func (p2p *P2P) AnnounceConnect() {
 	logrus.Debugln("Started Peer Connection Handler.")
 }
 
+func GetOrGeneratePeerKey(peerKey string) (crypto.PrivKey, error) {
+	if peerKey != "" {
+		// Decode the Base64-encoded private key
+		bytes, err := base64.StdEncoding.DecodeString(peerKey)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode peer key: %w", err)
+		}
+
+		privKey, err := crypto.UnmarshalPrivateKey(bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal private key: %w", err)
+		}
+
+		return privKey, nil
+	}
+
+	// Generate a new random private key
+	privKey, _, err := crypto.GenerateKeyPair(crypto.Ed25519, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate new key pair: %w", err)
+	}
+
+	return privKey, nil
+}
+
 // A function that generates the p2p configuration options and creates a
 // libp2p host object for the given context. The created host is returned
-func setupHost(ctx context.Context) (host.Host, *dht.IpfsDHT) {
+func setupHost(ctx context.Context, privateKey string) (host.Host, *dht.IpfsDHT) {
 	// Set up the host identity options
-	prvkey, _, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, rand.Reader)
+	prvkey, err := GetOrGeneratePeerKey(privateKey)
 	identity := libp2p.Identity(prvkey)
 	// Handle any potential error
 	if err != nil {
