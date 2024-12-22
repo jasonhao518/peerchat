@@ -14,6 +14,7 @@ import (
 	"github.com/manishmeganathan/peerchat/src"
 	"github.com/sirupsen/logrus"
 )
+import "encoding/json"
 
 const figlet = `
 
@@ -109,7 +110,19 @@ func RunMain(input *C.char) {
 	// Define a handler function
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
-			fmt.Fprintln(w, chatapp.PeerList())
+			if len(chatapp.PeerList()) > 0 {
+				jsonArray, err := json.Marshal(chatapp.PeerList())
+				if err != nil {
+					fmt.Println("Error:", err)
+					return
+				}
+				fmt.Fprintln(w, string(jsonArray))
+			} else {
+				fmt.Fprintln(w, chatapp.PeerList())
+			}
+
+			// Print the JSON array as a string
+
 		} else {
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
