@@ -17,7 +17,7 @@ build-arm64:
 
 build:
 	@echo Compiling PeerChat
-	@go build .
+	@go build -o peerchat ./cmd/*
 	@echo Compile Complete. Run './peerchat(.exe)'
 
 install:
