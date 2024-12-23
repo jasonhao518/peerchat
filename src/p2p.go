@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -104,7 +106,7 @@ func NewP2P(privateKey string) *P2P {
 // of peer address information until the peer channel closes
 func (p2p *P2P) AdvertiseConnect() {
 	// Advertise the availabilty of the service on this node
-	ttl, err := p2p.Discovery.Advertise(p2p.Ctx, service)
+	ttl, _ := p2p.Discovery.Advertise(p2p.Ctx, service)
 	// Debug log
 	logrus.Debugln("Advertised the PeerChat Service.")
 	// Sleep to give time for the advertisment to propogate
@@ -189,6 +191,19 @@ func GetOrGeneratePeerKey(peerKey string) (crypto.PrivKey, error) {
 	return privKey, nil
 }
 
+func readSwarmKey(key string) ([]byte, error) {
+	decodedKey, err := hex.DecodeString(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode swarm key: %w", err)
+	}
+
+	if len(decodedKey) != 32 {
+		return nil, fmt.Errorf("swarm key must be 32 bytes")
+	}
+
+	return decodedKey, nil
+}
+
 // A function that generates the p2p configuration options and creates a
 // libp2p host object for the given context. The created host is returned
 func setupHost(ctx context.Context, privateKey string) (host.Host, *dht.IpfsDHT) {
@@ -239,9 +254,26 @@ func setupHost(ctx context.Context, privateKey string) (host.Host, *dht.IpfsDHT)
 	// Trace log
 	logrus.Traceln("Generated P2P Stream Multiplexer, Connection Manager Configurations.")
 
+	peerID, err := peer.Decode("12D3KooWSPGy9bCrTRF5Nwsb3B6CQsZ9VGvEGPJ6ZT2ZWWCTXR3p")
+	if err != nil {
+		log.Fatalf("Failed to create multiaddr for private node: %v", err)
+	}
+	privateAddr, err := multiaddr.NewMultiaddr("/ip4/64.176.227.5/tcp/4001/p2p/12D3KooWSPGy9bCrTRF5Nwsb3B6CQsZ9VGvEGPJ6ZT2ZWWCTXR3p")
+	if err != nil {
+		log.Fatalf("Failed to create multiaddr for private node: %v", err)
+	}
+	// Create AddrInfo from the host ID and multiaddr
+	privateAddrInfo := peer.AddrInfo{
+		ID:    peerID,
+		Addrs: []multiaddr.Multiaddr{privateAddr},
+	}
+
 	// Setup NAT traversal and relay options
 	nat := libp2p.NATPortMap()
-	//relay := libp2p.EnableAutoRelay()
+	relayAddrs := []peer.AddrInfo{privateAddrInfo}
+	relay := libp2p.EnableAutoRelayWithStaticRelays(relayAddrs)
+	swarmKey, err := readSwarmKey("0a89581f061566d7d1b3b758f713fa403805f56c40e2550e526a83ea2a6731d4")
+	privateNet := libp2p.PrivateNetwork(swarmKey)
 
 	// Trace log
 	logrus.Traceln("Generated P2P NAT Traversal and Relay Configurations.")
@@ -257,7 +289,7 @@ func setupHost(ctx context.Context, privateKey string) (host.Host, *dht.IpfsDHT)
 	// Trace log
 	logrus.Traceln("Generated P2P Routing Configurations.")
 
-	opts := libp2p.ChainOptions(identity, listen, transport, muxer, nat, routing)
+	opts := libp2p.ChainOptions(identity, listen, transport, muxer, nat, routing, privateNet, relay)
 
 	// Construct a new libP2P host with the created options
 	libhost, err := libp2p.New(opts)
@@ -276,10 +308,21 @@ func setupHost(ctx context.Context, privateKey string) (host.Host, *dht.IpfsDHT)
 func setupKadDHT(ctx context.Context, nodehost host.Host) *dht.IpfsDHT {
 	// Create DHT server mode option
 	dhtmode := dht.Mode(dht.ModeServer)
-	// Rertieve the list of boostrap peer addresses
-	bootstrappeers := dht.GetDefaultBootstrapPeerAddrInfos()
+	peerID, err := peer.Decode("12D3KooWSPGy9bCrTRF5Nwsb3B6CQsZ9VGvEGPJ6ZT2ZWWCTXR3p")
+	if err != nil {
+		log.Fatalf("Failed to create multiaddr for private node: %v", err)
+	}
+	privateAddr, err := multiaddr.NewMultiaddr("/ip4/64.176.227.5/tcp/4001/p2p/12D3KooWSPGy9bCrTRF5Nwsb3B6CQsZ9VGvEGPJ6ZT2ZWWCTXR3p")
+	if err != nil {
+		log.Fatalf("Failed to create multiaddr for private node: %v", err)
+	}
+	// Create AddrInfo from the host ID and multiaddr
+	privateAddrInfo := peer.AddrInfo{
+		ID:    peerID,
+		Addrs: []multiaddr.Multiaddr{privateAddr},
+	}
 	// Create the DHT bootstrap peers option
-	dhtpeers := dht.BootstrapPeers(bootstrappeers...)
+	dhtpeers := dht.BootstrapPeers(privateAddrInfo)
 
 	// Trace log
 	logrus.Traceln("Generated DHT Configuration.")
