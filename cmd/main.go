@@ -206,28 +206,7 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 		w.Write([]byte("ok"))
 	})
 
-	// metrics endpoint
-	router.Handle(pathMetrics, promhttp.Handler())
-
-	// this is the endpoint for serving xterm.js assets
-	depenenciesDirectory := path.Join(workingDirectory, "./node_modules")
-	router.PathPrefix("/assets").Handler(http.StripPrefix("/assets", http.FileServer(http.Dir(depenenciesDirectory))))
-
-	// this is the endpoint for the root path aka website
-	publicAssetsDirectory := path.Join(workingDirectory, "./public")
-	router.PathPrefix("/").Handler(http.FileServer(http.Dir(publicAssetsDirectory)))
-
-	// start memory logging pulse
-	logWithMemory := createMemoryLog()
-	go func(tick *time.Ticker) {
-		for {
-			logWithMemory.Debug("tick")
-			<-tick.C
-		}
-	}(time.NewTicker(time.Second * 30))
-
-	// Define a handler function
-	http.HandleFunc("/peer", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/peer", func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers
 		w.Header().Set("Access-Control-Allow-Origin", "*")                            // Allow all origins
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")          // Allowed methods
@@ -274,8 +253,27 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 			}
 
 		}
-
 	})
+
+	// metrics endpoint
+	router.Handle(pathMetrics, promhttp.Handler())
+
+	// this is the endpoint for serving xterm.js assets
+	depenenciesDirectory := path.Join(workingDirectory, "./node_modules")
+	router.PathPrefix("/assets").Handler(http.StripPrefix("/assets", http.FileServer(http.Dir(depenenciesDirectory))))
+
+	// this is the endpoint for the root path aka website
+	publicAssetsDirectory := path.Join(workingDirectory, "./public")
+	router.PathPrefix("/").Handler(http.FileServer(http.Dir(publicAssetsDirectory)))
+
+	// start memory logging pulse
+	logWithMemory := createMemoryLog()
+	go func(tick *time.Ticker) {
+		for {
+			logWithMemory.Debug("tick")
+			<-tick.C
+		}
+	}(time.NewTicker(time.Second * 30))
 
 	go func() {
 
