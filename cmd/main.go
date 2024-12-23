@@ -293,14 +293,14 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 			protocol.Log.Fatal(err)
 		}
 	}()
-	//go func() {
-	if err := p2phost.Proxy.ServeSsh("0.0.0.0:" + sshStr); err != nil {
-		protocol.Log.Fatal(err)
-	}
-	//}()
+	go func() {
+		if err := p2phost.Proxy.ServeSsh("0.0.0.0:" + sshStr); err != nil {
+			protocol.Log.Fatal(err)
+		}
+	}()
 
 	// Create the Chat UI
-	//ui := src.NewUI(chatapp)
+	ui := src.NewUI(chatapp)
 	// Start the UI system
-	//ui.Run()
+	ui.Run()
 }
