@@ -63,18 +63,20 @@ func main() {
 	port := flag.String("port", "3030", "http port.")
 	ssh := flag.String("ssh", "222", "http port.")
 	socks5 := flag.String("socks5", "1082", "http port.")
+	workdir := flag.String("workdir", ".", "http port.")
 	// Parse input flags
 	flag.Parse()
 
-	RunMain(C.CString(*key), C.CString(*port), C.CString(*ssh), C.CString(*socks5))
+	RunMain(C.CString(*key), C.CString(*port), C.CString(*ssh), C.CString(*socks5), C.CString(*workdir))
 }
 
 //export RunMain
-func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char) {
+func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir *C.char) {
 	serverStr := C.GoString(privKey)
 	portStr := C.GoString(port)
 	sshStr := C.GoString(ssh)
 	socks5Str := C.GoString(socks5)
+	workingDirectory := C.GoString(workdir)
 	fmt.Println("Received string from C:", serverStr, portStr, sshStr, socks5Str)
 	// Define input flags
 
@@ -149,7 +151,7 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char) {
 	pathXTermJS := conf.GetString("path-xtermjs")
 	serverAddress := conf.GetString("server-addr")
 	serverPort := conf.GetInt("server-port")
-	workingDirectory := conf.GetString("workdir")
+	//workingDirectory := conf.GetString("workdir")
 	if !path.IsAbs(workingDirectory) {
 		wd, err := os.Getwd()
 		if err != nil {

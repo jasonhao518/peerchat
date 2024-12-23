@@ -16,12 +16,12 @@ var conf = config.Map{
 		Shorthand: "H",
 	},
 	"arguments": &config.StringSlice{
-		Default:   []string{},
+		Default:   []string{"machine", "ssh"},
 		Usage:     "comma-delimited list of arguments that should be passed to the terminal command",
 		Shorthand: "r",
 	},
 	"command": &config.String{
-		Default:   "/bin/bash",
+		Default:   "/opt/homebrew/bin/podman",
 		Usage:     "absolute path to command to run",
 		Shorthand: "t",
 	},
