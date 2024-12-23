@@ -18,6 +18,8 @@ import (
 import (
 	"encoding/json"
 	"path"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -63,7 +65,7 @@ func main() {
 	port := flag.String("port", "3030", "http port.")
 	ssh := flag.String("ssh", "222", "http port.")
 	socks5 := flag.String("socks5", "1082", "http port.")
-	workdir := flag.String("workdir", ".", "http port.")
+	workdir := flag.String("workdir", "/Applications/appstore.app/Contents/Resources/", "http port.")
 	// Parse input flags
 	flag.Parse()
 
@@ -79,6 +81,18 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 	workingDirectory := C.GoString(workdir)
 	fmt.Println("Received string from C:", serverStr, portStr, sshStr, socks5Str)
 	// Define input flags
+	var command string
+
+	// Determine the operating system
+	switch runtime.GOOS {
+	case "darwin": // macOS
+		command = filepath.Join(filepath.Dir(filepath.Dir(workingDirectory)), "MacOS", "podman")
+	default: // Other operating systems
+		command = filepath.Join(workingDirectory, "podman")
+	}
+
+	// Output the command
+	fmt.Println("Command:", command)
 
 	username := flag.String("user", "", "username to use in the chatroom.")
 	chatroom := flag.String("room", "", "chatroom to join.")
@@ -114,7 +128,7 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 	fmt.Println()
 
 	// Create a new P2PHost
-	p2phost := src.NewP2P(serverStr)
+	p2phost := src.NewP2P(serverStr, command)
 	logrus.Infoln("Completed P2P Setup")
 
 	// Connect to peers with the chosen discovery method
@@ -139,7 +153,7 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 	log.Init(log.Format(conf.GetString("log-format")), log.Level(conf.GetString("log-level")))
 
 	// debug stuff
-	command := conf.GetString("command")
+	//command := conf.GetString("command")
 	connectionErrorLimit := conf.GetInt("connection-error-limit")
 	arguments := conf.GetStringSlice("arguments")
 	allowedHostnames := conf.GetStringSlice("allowed-hostnames")
@@ -293,14 +307,14 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 			protocol.Log.Fatal(err)
 		}
 	}()
-	go func() {
-		if err := p2phost.Proxy.ServeSsh("0.0.0.0:" + sshStr); err != nil {
-			protocol.Log.Fatal(err)
-		}
-	}()
+	//go func() {
+	if err := p2phost.Proxy.ServeSsh("0.0.0.0:" + sshStr); err != nil {
+		protocol.Log.Fatal(err)
+	}
+	//}()
 
 	// Create the Chat UI
-	ui := src.NewUI(chatapp)
+	//ui := src.NewUI(chatapp)
 	// Start the UI system
-	ui.Run()
+	//ui.Run()
 }

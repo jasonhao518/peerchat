@@ -61,7 +61,7 @@ A Kademlia DHT is then bootstrapped on this host using the default peers offered
 and a Peer Discovery service is created from this Kademlia DHT. The PubSub handler is then
 created on the host using the peer discovery service created prior.
 */
-func NewP2P(privateKey string) *P2P {
+func NewP2P(privateKey string, command string) *P2P {
 	// Setup a background context
 	ctx := context.Background()
 
@@ -86,7 +86,7 @@ func NewP2P(privateKey string) *P2P {
 	logrus.Debugln("Created the PubSub Handler.")
 
 	ping.NewPingService(nodehost)
-	proxy := protocol.NewProxyService(ctx, nodehost, "p2p.to", nodehost.ID())
+	proxy := protocol.NewProxyService(ctx, nodehost, "p2p.to", nodehost.ID(), command)
 
 	// Return the P2P object
 	return &P2P{

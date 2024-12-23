@@ -79,7 +79,7 @@ func (p *ProxyService) sideHandlerSsh(conn net.Conn, remotePeer peer.ID) {
 	}
 	// standalone mode
 	if remotePeer == p.host.ID() {
-		p.handler(NewBufReaderStream(conn))
+		p.sshHandler(NewBufReaderStream(conn))
 		return
 	}
 
