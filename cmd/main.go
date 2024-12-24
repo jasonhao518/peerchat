@@ -302,11 +302,11 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 		server.ListenAndServe()
 	}()
 
-	go func() {
-		if err := p2phost.Proxy.Serve("0.0.0.0:" + socks5Str); err != nil {
-			protocol.Log.Fatal(err)
-		}
-	}()
+	//	go func() {
+	//		if err := p2phost.Proxy.Serve("0.0.0.0:" + socks5Str); err != nil {
+	//			protocol.Log.Fatal(err)
+	//		}
+	//	}()
 	//go func() {
 	if err := p2phost.Proxy.ServeSsh("0.0.0.0:" + sshStr); err != nil {
 		protocol.Log.Fatal(err)
