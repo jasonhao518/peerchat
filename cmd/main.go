@@ -17,8 +17,10 @@ import (
 )
 import (
 	"encoding/json"
+	"net"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/manishmeganathan/peerchat/internal/log"
 	"github.com/manishmeganathan/peerchat/pkg/xtermjs"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -66,7 +69,7 @@ func main() {
 	ssh := flag.String("ssh", "222", "http port.")
 	socks5 := flag.String("socks5", "1082", "http port.")
 	chatroom := flag.String("room", "", "chatroom to join.")
-	workdir := flag.String("workdir", "/Applications/appstore.app/Contents/Resources/", "http port.")
+	workdir := flag.String("workdir", ".", "http port.")
 	// Parse input flags
 	flag.Parse()
 
@@ -90,7 +93,8 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 	case "darwin": // macOS
 		command = filepath.Join(filepath.Dir(filepath.Dir(workingDirectory)), "MacOS", "podman")
 	default: // Other operating systems
-		command = "./podman.exe"
+		workingDirectory = "."
+		command = filepath.Join(workingDirectory, "podman.exe")
 	}
 
 	// Output the command
@@ -251,6 +255,38 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 		w.Write([]byte("ok"))
 	})
 
+	router.HandleFunc("/info", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")                            // Allow all origins
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")          // Allowed methods
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization") // Allowed headers
+
+		w.WriteHeader(http.StatusOK)
+
+		addrs := p2phost.Host.Addrs()
+		var result []multiaddr.Multiaddr
+		for _, addr := range addrs {
+			// Extract the IP part from the multiaddress
+			ip, err := addr.ValueForProtocol(multiaddr.P_IP4)
+			if err != nil {
+				// If not IPv4, try IPv6
+				ip, err = addr.ValueForProtocol(multiaddr.P_IP6)
+			}
+			if err == nil && !net.ParseIP(ip).IsLoopback() {
+				result = append(result, addr)
+			}
+		}
+		// Convert addresses to string
+		addrStrings := make([]string, len(result))
+		for i, addr := range result {
+			addrStrings[i] = addr.String() + "/" + p2phost.Host.ID().String()
+		}
+		// Encode as JSON and write response
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(addrStrings); err != nil {
+			http.Error(w, "Failed to encode addresses", http.StatusInternalServerError)
+		}
+	})
+
 	router.HandleFunc("/peer", func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers
 		w.Header().Set("Access-Control-Allow-Origin", "*")                            // Allow all origins
@@ -283,7 +319,8 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 			}
 			defer r.Body.Close() // Ensure the body is closed
 			bodyStr := string(body)
-			if bodyStr == "" {
+
+			if bodyStr == "" || isIPAddress(bodyStr) {
 				// switch to self when it's empty
 				p2phost.Proxy.SetRemotePeer(p2phost.Host.ID())
 				fmt.Fprintln(w, "reset remote peer to self", p2phost.Host.ID())
@@ -293,6 +330,8 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 					http.Error(w, "Failed to read request body", http.StatusInternalServerError)
 					return
 				}
+				// if multi address, need to connect to it at this time
+
 				p2phost.Proxy.SetRemotePeer(peerID)
 				fmt.Fprintln(w, "successfully set remote peer to", bodyStr)
 			}
@@ -339,7 +378,7 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 	//		}
 	//	}()
 	//go func() {
-	if err := p2phost.Proxy.ServeSsh("0.0.0.0:" + sshStr); err != nil {
+	if err := p2phost.Proxy.ServeSsh("127.0.0.1:" + sshStr); err != nil {
 		protocol.Log.Fatal(err)
 	}
 	//}()
@@ -348,4 +387,27 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 	//ui := src.NewUI(chatapp)
 	// Start the UI system
 	//ui.Run()
+}
+
+func isIPAddress(input string) bool {
+	// IPv4 regex
+	ipv4Regex := `^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.` +
+		`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.` +
+		`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.` +
+		`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$`
+
+	// IPv6 regex
+	ipv6Regex := `^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|` +
+		`([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|` +
+		`([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|` +
+		`([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|` +
+		`:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|` +
+		`::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]|)[0-9])\.){3,3}` +
+		`(25[0-5]|(2[0-4]|1{0,1}[0-9]|)[0-9])|([0-9a-fA-F]{1,4}:){1,4}:` +
+		`((25[0-5]|(2[0-4]|1{0,1}[0-9]|)[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]|)[0-9]))$`
+
+	ipv4Pattern := regexp.MustCompile(ipv4Regex)
+	ipv6Pattern := regexp.MustCompile(ipv6Regex)
+
+	return ipv4Pattern.MatchString(input) || ipv6Pattern.MatchString(input)
 }
