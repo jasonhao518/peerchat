@@ -11,6 +11,7 @@ require (
 	github.com/libp2p/go-libp2p v0.38.1
 	github.com/libp2p/go-libp2p-gostream v0.6.0
 	github.com/libp2p/go-libp2p-kad-dht v0.28.1
+	github.com/qsocket/conpty-go v0.0.0-20230315180542-d8f8596877dc // indirect
 	github.com/libp2p/go-libp2p-pubsub v0.12.0
 	github.com/mr-tron/base58 v1.2.0
 	github.com/multiformats/go-multiaddr v0.14.0

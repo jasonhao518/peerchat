@@ -65,21 +65,23 @@ func main() {
 	port := flag.String("port", "3030", "http port.")
 	ssh := flag.String("ssh", "222", "http port.")
 	socks5 := flag.String("socks5", "1082", "http port.")
+	chatroom := flag.String("room", "", "chatroom to join.")
 	workdir := flag.String("workdir", "/Applications/appstore.app/Contents/Resources/", "http port.")
 	// Parse input flags
 	flag.Parse()
 
-	RunMain(C.CString(*key), C.CString(*port), C.CString(*ssh), C.CString(*socks5), C.CString(*workdir))
+	RunMain(C.CString(*key), C.CString(*port), C.CString(*ssh), C.CString(*socks5), C.CString(*workdir), C.CString(*chatroom))
 }
 
 //export RunMain
-func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir *C.char) {
+func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir *C.char, room *C.char) {
 	serverStr := C.GoString(privKey)
 	portStr := C.GoString(port)
 	sshStr := C.GoString(ssh)
 	socks5Str := C.GoString(socks5)
 	workingDirectory := C.GoString(workdir)
-	fmt.Println("Received string from C:", serverStr, portStr, sshStr, socks5Str)
+	chatroom := C.GoString(room)
+	fmt.Println("Received string from C:", serverStr, portStr, sshStr, socks5Str, workingDirectory, chatroom)
 	// Define input flags
 	var command string
 
@@ -88,14 +90,13 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 	case "darwin": // macOS
 		command = filepath.Join(filepath.Dir(filepath.Dir(workingDirectory)), "MacOS", "podman")
 	default: // Other operating systems
-		command = filepath.Join(workingDirectory, "podman")
+		command = "./podman.exe"
 	}
 
 	// Output the command
 	fmt.Println("Command:", command)
 
 	username := flag.String("user", "", "username to use in the chatroom.")
-	chatroom := flag.String("room", "", "chatroom to join.")
 	loglevel := flag.String("log", "", "level of logs to print.")
 	discovery := flag.String("discover", "", "method to use for discovery.")
 	// Parse input flags
@@ -143,7 +144,7 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 	logrus.Infoln("Connected to Service Peers")
 
 	// Join the chat room
-	chatapp, _ := src.JoinChatRoom(p2phost, *username, *chatroom)
+	chatapp, _ := src.JoinChatRoom(p2phost, *username, chatroom)
 	logrus.Infof("Joined the '%s' chatroom as '%s'", chatapp.RoomName, chatapp.UserName)
 
 	// Wait for network setup to complete
@@ -212,6 +213,36 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 	router.HandleFunc(pathReadiness, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
+	})
+
+	router.HandleFunc("/join", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")                            // Allow all origins
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")          // Allowed methods
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization") // Allowed headers
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+			return
+		}
+		defer r.Body.Close() // Ensure the body is closed
+		bodyStr := string(body)
+		// Create a reference to the current chatroom
+		oldchatroom := chatapp
+
+		// Create a new chatroom and join it
+		newchatroom, err := src.JoinChatRoom(p2phost, "newuser", bodyStr)
+		if err != nil {
+			logrus.Debugf("could not change chat room - %s", err)
+
+		}
+
+		// Assign the new chat room to UI
+		chatapp = newchatroom
+		// Sleep for a second to give time for the queues to adapt
+		time.Sleep(time.Second * 1)
+
+		// Exit the old chatroom and pause for two seconds
+		oldchatroom.Exit()
 	})
 
 	// liveness probe endpoint
