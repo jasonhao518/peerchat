@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	log2 "log"
 	"net/http"
 	"os"
 	"time"
@@ -16,13 +17,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 import (
+	"context"
 	"encoding/json"
 	"net"
+	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
+	"syscall"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -45,6 +51,19 @@ W E L C O M E  T O
 dP     
 `
 
+var (
+	cmd      *exec.Cmd
+	sigs     = make(chan os.Signal, 1)
+	selfExit = make(chan struct{}, 1)
+)
+
+type PodmanConnection struct {
+	Name     string `json:"Name"`
+	Identity string `json:"Identity"`
+	URI      string `json:"URI"`
+	Default  bool   `json:"Default"`
+}
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true // Allow all origins for demo; restrict in production
@@ -66,7 +85,7 @@ func init() {
 func main() {
 	key := flag.String("key", "", "private key")
 	port := flag.String("port", "3030", "http port.")
-	ssh := flag.String("ssh", "222", "http port.")
+	ssh := flag.String("ssh", "2222", "http port.")
 	socks5 := flag.String("socks5", "1082", "http port.")
 	chatroom := flag.String("room", "", "chatroom to join.")
 	workdir := flag.String("workdir", ".", "http port.")
@@ -377,12 +396,45 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 	//			protocol.Log.Fatal(err)
 	//		}
 	//	}()
-	//go func() {
-	if err := p2phost.Proxy.ServeSsh("127.0.0.1:" + sshStr); err != nil {
-		protocol.Log.Fatal(err)
-	}
-	//}()
+	go func() {
+		if err := p2phost.Proxy.ServeSsh("127.0.0.1:" + sshStr); err != nil {
+			protocol.Log.Fatal(err)
+		}
+	}()
 
+	wg := sync.WaitGroup{}
+
+	// 启动代理协程
+	wg.Add(1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		defer wg.Done()
+		if err := Proxy(ctx, time.Duration(5*time.Second), "0.0.0.0:"+socks5Str, command); err != nil {
+			log2.Println("proxy error: ", err)
+		}
+
+		log2.Println("proxy协程已退出")
+		go func() {
+			sigs <- syscall.SIGQUIT
+		}()
+	}()
+
+	// 设置信号处理函数
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sig := <-sigs
+		log2.Println("Received signal:", sig)
+		log2.Println("信号清理已经完成")
+		cancel()
+	}()
+
+	wg.Wait()
+	log2.Println("进程退出!")
+	time.Sleep(time.Second * 4)
+	selfExit <- struct{}{}
 	// Create the Chat UI
 	//ui := src.NewUI(chatapp)
 	// Start the UI system
