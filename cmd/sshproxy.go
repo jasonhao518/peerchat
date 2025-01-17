@@ -44,84 +44,58 @@ var (
 	httpProxyBeginRegex = regexp.MustCompile(`^(CONNECT|GET|POST|PUT|PATCH|DELETE) (\S+) HTTP/(1.1|1.0|2)\r\n`)
 )
 
-func Proxy(ctx context.Context, timeout time.Duration, loaclListenAddr string, command string) error {
-	server, err := net.Listen("tcp", loaclListenAddr)
+func Proxy(ctx context.Context, timeout time.Duration, localListenAddr string, command string) error {
+	server, err := net.Listen("tcp", localListenAddr)
 	if err != nil {
 		return err
 	}
-	sshConn, err := getSshConn(ctx, timeout, command)
-	if err != nil {
-		return err
-	}
-
-	wg := sync.WaitGroup{}
-	defer wg.Wait()
-	// 启动sshConn定期探活重连，避免断网后永久连接失败
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Second * 5):
-				if !isSshLive(sshConn) {
-					c, err := getSshConn(ctx, timeout, command)
-					if err != nil {
-						log.Print("ssh reconnect error: ", err)
-						continue
-					}
-					tmp := sshConn
-					sshConn = c
-					tmp.Close()
-					continue
-				}
-				log.Print("ssh is still alive!!!!!!!!!!!!!!!!!!!!")
-			}
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		<-ctx.Done()
-		if err := sshConn.Close(); err != nil {
-			log.Println("close ssh connection error: ", err)
-		}
-		if err := server.Close(); err != nil {
-			log.Println("close listener error: ", err)
-		}
-		log.Println("local listener closed!")
-	}()
+	defer server.Close()
 
 	var connCount atomic.Int64
+
+	// Channel to signal the server to stop
+	done := make(chan struct{})
+	go func() {
+		<-ctx.Done() // Wait for context cancellation
+		close(done)  // Signal the server to stop
+		server.Close()
+	}()
+
 	for {
 		select {
-		case <-ctx.Done():
+		case <-done:
+			// Exit the loop when done signal is received
 			return nil
 		default:
-		}
-
-		client, err := server.Accept()
-		if err != nil {
-			log.Printf("Accept failed %v", err)
-			continue
-		}
-		wg.Add(1)
-		connCount.Add(1)
-		log.Println("current total connection is: ", connCount.Load())
-		go func() {
-			defer wg.Done()
-
-			c, err := getSshConn(ctx, timeout, command)
+			// Accept new client connections
+			client, err := server.Accept()
 			if err != nil {
-				log.Print("ssh reconnect error: ", err)
-				return
+				// If the error is due to the server closing, exit the loop
+				if errors.Is(err, net.ErrClosed) {
+					return nil
+				}
+				log.Printf("Accept failed: %v", err)
+				continue
 			}
-			process(ctx, client, c)
-			connCount.Add(-1)
-			log.Print("process goroutine exited")
-		}()
+
+			connCount.Add(1)
+			log.Println("Current total connection count:", connCount.Load())
+
+			// Handle the connection in a separate goroutine
+			go func() {
+				defer connCount.Add(-1)
+
+				c, err := getSshConn(ctx, timeout, command)
+				if err != nil {
+					log.Print("SSH reconnect error:", err)
+					client.Close()
+					return
+				}
+
+				process(ctx, client, c)
+				log.Print("Process goroutine exited")
+			}()
+		}
 	}
 }
 
@@ -143,7 +117,7 @@ func getSshConn(ctx context.Context, timeout time.Duration, command string) (*ss
 	if err != nil {
 		log.Fatalf("Failed to read private key: %v", err)
 	}
-
+	fmt.Println("connection info", remoteSshAddr, sshUser, sshPassword)
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
 		log.Fatalf("Failed to parse private key: %v", err)

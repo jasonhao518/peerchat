@@ -21,14 +21,11 @@ import (
 	"encoding/json"
 	"net"
 	"os/exec"
-	"os/signal"
 	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
-	"sync"
-	"syscall"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -54,6 +51,7 @@ dP
 var (
 	cmd      *exec.Cmd
 	sigs     = make(chan os.Signal, 1)
+	cancel1  context.CancelFunc
 	selfExit = make(chan struct{}, 1)
 )
 
@@ -354,6 +352,18 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 				p2phost.Proxy.SetRemotePeer(peerID)
 				fmt.Fprintln(w, "successfully set remote peer to", bodyStr)
 			}
+			fmt.Println("handle proxy--------------")
+			if cancel1 != nil {
+				cancel1()
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			cancel1 = cancel
+
+			if err := Proxy(ctx, time.Duration(5*time.Second), "0.0.0.0:"+socks5Str, command); err != nil {
+				log2.Println("proxy error: ", err)
+			}
+			fmt.Println(" proxy closed--------------")
 
 		}
 	})
@@ -396,45 +406,12 @@ func RunMain(privKey *C.char, port *C.char, ssh *C.char, socks5 *C.char, workdir
 	//			protocol.Log.Fatal(err)
 	//		}
 	//	}()
-	go func() {
-		if err := p2phost.Proxy.ServeSsh("127.0.0.1:" + sshStr); err != nil {
-			protocol.Log.Fatal(err)
-		}
-	}()
+	//go func() {
+	if err := p2phost.Proxy.ServeSsh("127.0.0.1:" + sshStr); err != nil {
+		protocol.Log.Fatal(err)
+	}
+	//}()
 
-	wg := sync.WaitGroup{}
-
-	// 启动代理协程
-	wg.Add(1)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		defer wg.Done()
-		if err := Proxy(ctx, time.Duration(5*time.Second), "0.0.0.0:"+socks5Str, command); err != nil {
-			log2.Println("proxy error: ", err)
-		}
-
-		log2.Println("proxy协程已退出")
-		go func() {
-			sigs <- syscall.SIGQUIT
-		}()
-	}()
-
-	// 设置信号处理函数
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		sig := <-sigs
-		log2.Println("Received signal:", sig)
-		log2.Println("信号清理已经完成")
-		cancel()
-	}()
-
-	wg.Wait()
-	log2.Println("进程退出!")
-	time.Sleep(time.Second * 4)
-	selfExit <- struct{}{}
 	// Create the Chat UI
 	//ui := src.NewUI(chatapp)
 	// Start the UI system
